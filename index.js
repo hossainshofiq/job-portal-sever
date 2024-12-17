@@ -4,12 +4,17 @@ const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const app = express();
 require('dotenv').config();
+
 const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 // middleware
 app.use(cors({
-    origin: ['http://localhost:5173'],
+    origin: [
+        'http://localhost:5173',
+        'https://job-portal-9faeb.web.app',
+        'https://job-portal-9faeb.firebaseapp.com',
+    ],
     credentials: true,
 }));
 app.use(express.json());
@@ -53,10 +58,10 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
-        await client.connect();
+        // await client.connect();
         // Send a ping to confirm a successful connection
-        await client.db("admin").command({ ping: 1 });
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+        // await client.db("admin").command({ ping: 1 });
+        // console.log("Pinged your deployment. You successfully connected to MongoDB!");
 
         // jobs related apis
         const jobsCollection = client.db('jobPortal').collection('jobs');
@@ -65,11 +70,27 @@ async function run() {
         // auth related apis
         app.post('/jwt', async (req, res) => {
             const user = req.body;
-            const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '6h' });
+            const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '10h' });
 
             res
-                .cookie('token', token, { httpOnly: true, secure: false })
+                .cookie('token', token,
+                    {
+                        httpOnly: true,
+                        secure: process.env.NODE_ENV === 'production',
+                        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict'
+                    })
                 .send({ success: true });
+        })
+
+        app.post('/logout', (req, res) => {
+            res
+                .clearCookie('token',
+                    {
+                        httpOnly: true,
+                        secure: process.env.NODE_ENV === 'production',
+                        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict'
+                    })
+                .send({ success: true })
         })
 
         // jobs related apis
@@ -106,8 +127,8 @@ async function run() {
             const email = req.query.email;
             const query = { applicant_email: email };
 
-            if(req.user.email !== req.query.email){
-                return res.status(403).send({message: 'Forbidden access'});
+            if (req.user.email !== req.query.email) {
+                return res.status(403).send({ message: 'Forbidden access' });
             }
 
             // console.log('cukro cukro cookies', req.cookies);
